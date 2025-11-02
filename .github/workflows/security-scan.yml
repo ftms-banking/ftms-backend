@@ -1,39 +1,64 @@
-name: Security Scanning
+name: Security Scanning (Local Runner)
 
 on:
-  pull_request:
-    branches: [develop, main]
   push:
+    branches: [develop, main]
+  pull_request:
     branches: [develop, main]
 
 jobs:
-  security:
-    runs-on: ubuntu-latest
+  security-scan:
+    runs-on: self-hosted
+    environment: devsecops
+    timeout-minutes: 30
+
+    env:
+      REPORT_DIR: reports
+      TRIVY_DB_PATH: /opt/trivy/db
+      TRIVY_CACHE_DIR: /opt/trivy/cache
 
     steps:
-      - uses: actions/checkout@v4
+      # --- SOURCE CHECKOUT ---
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # --- TRIVY SCAN ---
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.22.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+      # --- PREPARE REPORT DIRECTORY ---
+      - name: Initialize workspace
+        run: mkdir -p $REPORT_DIR
 
-      - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-      # --- OWASP DEPENDENCY CHECK ---
+      # --- JAVA RUNTIME SETUP ---
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
+      # ========================================================
+      # TRIVY – Container and Filesystem Vulnerability Scanning
+      # ========================================================
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.22.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: '${{ env.REPORT_DIR }}/trivy-results.sarif'
+          cache-dir: '${{ env.TRIVY_CACHE_DIR }}'
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+          db-repository: 'file://${{ env.TRIVY_DB_PATH }}'
+
+      - name: Archive Trivy Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: ${{ env.REPORT_DIR }}/trivy-results.sarif
+
+      # ========================================================
+      # OWASP DEPENDENCY CHECK – Maven/Gradle Dependency Audit
+      # ========================================================
       - name: Run OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
@@ -42,10 +67,24 @@ jobs:
           args: >-
             --enableExperimental
             --scan ./src
+            --out ./${{ env.REPORT_DIR }}
+            --data /opt/dependency-check/data
 
-      - name: Upload Dependency Check Report
+      - name: Archive Dependency Check Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report
-          path: reports/
+          path: ${{ env.REPORT_DIR }}/dependency-check-report.json
+
+      # ========================================================
+      # FINAL VALIDATION AND REPORT AGGREGATION
+      # ========================================================
+      - name: Display report summary
+        if: always()
+        run: |
+          echo "=== TRIVY Vulnerability Summary ==="
+          grep -E "CRITICAL|HIGH" ${{ env.REPORT_DIR }}/trivy-results.sarif || echo "No high severity issues detected."
+          echo
+          echo "=== OWASP Dependency Check Summary ==="
+          grep -E '"severity":' ${{ env.REPORT_DIR }}/dependency-check-report.json | sort | uniq -c || echo "No vulnerable dependencies found."

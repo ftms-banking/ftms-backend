@@ -1,4 +1,4 @@
-name: Deploy to Kubernetes
+name: Deploy to Kubernetes (Local Runner)
 
 on:
   push:
@@ -7,22 +7,24 @@ on:
       - 'v*'
 
 env:
-  REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  REGISTRY: localhost:8082              # Local Nexus Docker Registry
   IMAGE_NAME: ftms-backend
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted                # ✅ Run on your local self-hosted GitHub Actions runner
     if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
 
+      # --- KUBECTL SETUP ---
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: 'latest'
 
+      # --- CONFIGURE KUBECTL (LOCAL CLUSTER) ---
       - name: Configure kubectl
         run: |
           mkdir -p $HOME/.kube
@@ -31,15 +33,25 @@ jobs:
           export KUBECONFIG=$HOME/.kube/config
           kubectl cluster-info
 
+      # --- VALIDATE CLUSTER CONNECTIVITY ---
       - name: Validate Cluster Connectivity
-        run: kubectl get nodes
+        run: |
+          echo "🔍 Validating Kubernetes nodes..."
+          kubectl get nodes
+          echo "✅ Cluster is reachable."
 
+      # --- GET IMAGE VERSION FROM YAML ---
       - name: Get image version
         id: image
-        run: echo "version=$(grep 'version:' k8s/deployment.yaml | awk '{print $2}')" >> $GITHUB_OUTPUT
-
-      - name: Deploy to Kubernetes
         run: |
+          version=$(grep 'version:' k8s/deployment.yaml | awk '{print $2}')
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "📦 Detected version: $version"
+
+      # --- DEPLOY APPLICATION ---
+      - name: Deploy to Local Kubernetes Cluster
+        run: |
+          echo "🚀 Deploying to local cluster using local Nexus registry..."
           kubectl apply -f k8s/namespace.yaml --validate=false
           kubectl apply -f k8s/configmap.yaml --validate=false
           kubectl apply -f k8s/secrets.yaml --validate=false
@@ -49,13 +61,17 @@ jobs:
             -n ftms
           kubectl rollout status deployment/ftms-backend -n ftms --timeout=5m
 
+      # --- VALIDATION & VERIFICATION ---
       - name: Verify Deployment
         run: |
+          echo "🧩 Verifying deployed resources..."
           kubectl get pods -n ftms
-          kubectl get services -n ftms
+          kubectl get svc -n ftms
 
+      # --- HEALTH CHECK ---
       - name: Run Health Check
         run: |
+          echo "🔎 Performing application health check..."
           kubectl run healthcheck --rm -i --restart=Never \
             --image=curlimages/curl -n ftms -- \
             curl -f http://ftms-backend-service:80/actuator/health || exit 1

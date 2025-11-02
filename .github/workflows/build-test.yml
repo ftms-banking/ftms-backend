@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted  # Local runner (must have Java, Maven, Docker access)
 
     services:
       mysql:
@@ -27,7 +27,13 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure Maven Wrapper Executable
+        run: chmod +x mvnw
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -40,21 +46,14 @@ jobs:
         run: ./mvnw clean compile
 
       - name: Run Unit Tests
-        run: ./mvnw test
         env:
           DB_URL: jdbc:mysql://localhost:3306/ftms_test_db
           DB_USERNAME: test_user
           DB_PASSWORD: test_pass
+        run: ./mvnw test
 
       - name: Generate Code Coverage
         run: ./mvnw jacoco:report
-
-      - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./target/site/jacoco/jacoco.xml
-          flags: unittests
-          fail_ci_if_error: false
 
       - name: Archive Test Results
         if: always()
@@ -68,3 +67,20 @@ jobs:
         with:
           name: code-coverage
           path: target/site/jacoco/
+
+      - name: SonarQube Analysis (Local)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://localhost:9000
+        run: |
+          ./mvnw sonar:sonar \
+            -Dsonar.projectKey=ftms-backend \
+            -Dsonar.projectName=FTMS-Backend \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.login=$SONAR_TOKEN
+
+      - name: Check SonarQube Quality Gate
+        if: always()
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
