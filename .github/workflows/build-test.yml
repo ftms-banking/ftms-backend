@@ -13,11 +13,13 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        
       - name: Enforce Maven Wrapper Permissions
         run: |
-            echo "Granting execution rights to mvnw..."
-            chmod +x ./mvnw
-            git update-index --chmod=+x mvnw || true
+          echo "Granting execution rights to mvnw..."
+          chmod +x ./mvnw
+          git update-index --chmod=+x mvnw || true
+      
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
