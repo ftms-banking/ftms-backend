@@ -1,0 +1,10 @@
+{
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "status": "VERIFIED",
+  "kycStatus": "APPROVED",
+  "createdAt": "2025-11-01T10:30:00Z",
+  "updatedAt": "2025-11-02T14:22:00Z"
+}

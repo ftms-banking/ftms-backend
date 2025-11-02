@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/api/v1/customers"
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "uuid": "{{randomValue type='UUID'}}",
+      "email": "{{jsonPath request.body '$.email'}}",
+      "firstName": "{{jsonPath request.body '$.firstName'}}",
+      "lastName": "{{jsonPath request.body '$.lastName'}}",
+      "status": "PENDING",
+      "kycStatus": "NOT_SUBMITTED",
+      "createdAt": "{{now format='yyyy-MM-dd HH:mm:ss'}}"
+    }
+  }
+}

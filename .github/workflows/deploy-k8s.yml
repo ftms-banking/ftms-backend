@@ -1,0 +1,55 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  IMAGE_NAME: ftms-backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Get image version
+        id: image
+        run: echo "version=$(grep 'version:' k8s/deployment.yaml | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/secrets.yaml
+          kubectl set image deployment/ftms-backend \
+            ftms-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            -n ftms
+          kubectl rollout status deployment/ftms-backend -n ftms --timeout=5m
+
+      - name: Verify Deployment
+        run: |
+          kubectl get pods -n ftms
+          kubectl get services -n ftms
+
+      - name: Run Health Check
+        run: |
+          kubectl run healthcheck --rm -i --restart=Never \
+            --image=curlimages/curl -- \
+            curl -f http://ftms-backend-service:80/actuator/health || exit 1

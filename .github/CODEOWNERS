@@ -1,0 +1,12 @@
+# .github/CODEOWNERS
+# Global owners
+* @backend-lead @tech-lead
+
+# Domain-specific owners
+/src/main/java/com/ftms/backend/customer/ @backend-lead @senior-dev-1
+/src/main/java/com/ftms/backend/account/ @backend-lead @senior-dev-2
+/src/main/java/com/ftms/backend/transaction/ @tech-lead @senior-dev-1
+
+# Infrastructure
+/docker/ @devops-lead
+/infrastructure/ @devops-lead
