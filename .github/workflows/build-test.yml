@@ -14,8 +14,12 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Enable PowerShell Script Execution
+        shell: pwsh
+        run: |
+            Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
       - name: Enforce Maven Wrapper Permissions
-        shell: bash
         run: |
             echo "Granting execution rights to mvnw..."
             chmod +x ./mvnw
