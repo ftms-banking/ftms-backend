@@ -10,16 +10,21 @@ jobs:
   build-and-scan:
     name: Build, Test & Analyze
     runs-on: self-hosted
+
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-        
+
       - name: Enforce Maven Wrapper Permissions
+        shell: pwsh
         run: |
-          echo "Granting execution rights to mvnw..."
-          chmod +x ./mvnw
-          git update-index --chmod=+x mvnw || true
-      
+          Write-Host "Granting execution rights to mvnw..."
+          if (Test-Path "./mvnw") {
+            git update-index --chmod=+x mvnw
+            Write-Host "Permissions applied successfully."
+          } else {
+            Write-Host "mvnw not found, skipping permission update."
+          }
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -28,27 +33,34 @@ jobs:
           distribution: 'temurin'
 
       - name: Build Project with Maven
+        shell: pwsh
         run: mvn clean install -DskipTests=false
 
       - name: Run SonarQube Scan
+        shell: pwsh
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: http://localhost:9000  # since SonarQube runs locally in Docker
+          SONAR_HOST_URL: http://localhost:9000
         run: |
-          mvn sonar:sonar ^
-            -Dsonar.projectKey=ftms-enterprise ^
-            -Dsonar.host.url=%SONAR_HOST_URL% ^
-            -Dsonar.login=%SONAR_TOKEN%
+          Write-Host "Initiating SonarQube scan..."
+          mvn sonar:sonar `
+            -Dsonar.projectKey=ftms-enterprise `
+            -Dsonar.host.url=$env:SONAR_HOST_URL `
+            -Dsonar.login=$env:SONAR_TOKEN
 
       - name: Verify SonarQube Quality Gate
-        shell: bash
+        shell: pwsh
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: http://localhost:9000
         run: |
-          echo "Waiting for SonarQube quality gate status..."
-          sleep 30
-          status=$(curl -s -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=ftms-enterprise" | jq -r '.projectStatus.status')
-          echo "Quality Gate Status: $status"
-          if [ "$status" != "OK" ]; then
-            echo "❌ Quality gate failed"
+          Write-Host "Waiting for SonarQube quality gate status..."
+          Start-Sleep -Seconds 30
+          $response = Invoke-RestMethod -Uri "$env:SONAR_HOST_URL/api/qualitygates/project_status?projectKey=ftms-enterprise" -Headers @{Authorization=("Basic " + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$env:SONAR_TOKEN:")))}
+          $status = $response.projectStatus.status
+          Write-Host "Quality Gate Status: $status"
+          if ($status -ne "OK") {
+            Write-Host "❌ Quality gate failed"
             exit 1
-          fi
-          echo "✅ Quality gate passed"
+          }
+          Write-Host "✅ Quality gate passed"
