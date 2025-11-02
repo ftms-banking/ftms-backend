@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Enforce Maven Wrapper Permissions
+        shell: bash
         run: |
             echo "Granting execution rights to mvnw..."
             chmod +x ./mvnw
