@@ -48,19 +48,23 @@ jobs:
             -Dsonar.host.url=%SONAR_HOST_URL% ^
             -Dsonar.login=%SONAR_TOKEN%
 
+
       - name: Verify SonarQube Quality Gate
-        shell: cmd
+        shell: pwsh
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: http://localhost:9000
         run: |
-          echo Waiting for SonarQube quality gate status...
-          timeout /t 30
-          curl -u "%SONAR_TOKEN%:" "%SONAR_HOST_URL%/api/qualitygates/project_status?projectKey=ftms-enterprise" -o response.json
-          for /f "tokens=2 delims=:," %%A in ('findstr /i "status" response.json') do set STATUS=%%~A
-          echo Quality Gate Status:%STATUS%
-          if /I not "%STATUS%"=="OK" (
-            echo ❌ Quality gate failed
-            exit /b 1
-          )
-          echo ✅ Quality gate passed
+          Write-Host "Waiting for SonarQube quality gate status..."
+          Start-Sleep -Seconds 30
+
+          $response = Invoke-RestMethod -Uri "$env:SONAR_HOST_URL/api/qualitygates/project_status?projectKey=ftms-backend" -Headers @{Authorization=("Basic "+[Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$env:SONAR_TOKEN:")))} -UseBasicParsing
+          $status = $response.projectStatus.status
+
+          Write-Host "Quality Gate Status: $status"
+
+          if ($status -ne "OK") {
+              Write-Error "❌ Quality gate failed"
+              exit 1
+          }
+          Write-Host "✅ Quality gate passed successfully"
