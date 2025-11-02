@@ -21,7 +21,7 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping"
+          --health-cmd="mysqladmin ping -h localhost -u root -prootpass"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -50,7 +50,7 @@ jobs:
         run: ./mvnw jacoco:report
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: ./target/site/jacoco/jacoco.xml
           flags: unittests
@@ -58,13 +58,13 @@ jobs:
 
       - name: Archive Test Results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: target/surefire-reports/
 
       - name: Archive Code Coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage
           path: target/site/jacoco/
