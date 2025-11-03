@@ -52,6 +52,7 @@ curl -X POST http://localhost:8081/api/v1/customers \
     "lastName": "User"
   }'
 
+
 # Get customer
 curl http://localhost:8081/api/v1/customers/550e8400-e29b-41d4-a716-446655440000
 ```
