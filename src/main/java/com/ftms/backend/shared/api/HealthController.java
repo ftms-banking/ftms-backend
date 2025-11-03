@@ -1,4 +1,4 @@
-package com.ftms.backend.controller;
+package com.ftms.backend.shared.api;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,7 +15,7 @@ public class HealthController {
         return Map.of(
                 "status", "UP",
                 "service", "FTMS Backend",
-                "version", "v1"
+                "version", "0.0.1-SNAPSHOT"
         );
     }
 }

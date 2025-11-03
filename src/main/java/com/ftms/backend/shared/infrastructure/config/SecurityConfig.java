@@ -1,4 +1,4 @@
-package com.ftms.backend.config;
+package com.ftms.backend.shared.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

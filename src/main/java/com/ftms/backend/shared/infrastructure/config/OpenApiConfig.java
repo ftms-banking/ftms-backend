@@ -1,4 +1,4 @@
-package com.ftms.backend.config;
+package com.ftms.backend.shared.infrastructure.config;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
