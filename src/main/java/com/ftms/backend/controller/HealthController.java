@@ -15,7 +15,7 @@ public class HealthController {
         return Map.of(
                 "status", "UP",
                 "service", "FTMS Backend",
-                "version", "0.0.1-SNAPSHOT"
+                "version", "v1"
         );
     }
 }
