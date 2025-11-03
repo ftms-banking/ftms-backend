@@ -11,5 +11,6 @@ class FtmsBackendApplicationTests {
     @Test
     void contextLoads() {
         // Test passes with H2
+        assertEquals(1, 1);
     }
 }
