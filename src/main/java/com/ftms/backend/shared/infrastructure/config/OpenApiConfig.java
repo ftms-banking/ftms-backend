@@ -14,12 +14,23 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+/**
+ * Configuration for OpenAPI / Swagger documentation.
+ */
 @Configuration
 public class OpenApiConfig {
 
     @Value("${server.port:8080}")
     private String serverPort;
 
+    /**
+     * Builds the OpenAPI description for FTMS.
+     *
+     * <p>Adjust this bean if you need to change title/version or add
+     * contact/license metadata.
+     *
+     * @return initialized OpenAPI instance
+     */
     @Bean
     public OpenAPI ftmsOpenAPI() {
         return new OpenAPI()
