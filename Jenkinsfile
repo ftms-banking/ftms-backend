@@ -106,60 +106,34 @@ pipeline {
                 script {
                     echo "🚦 Waiting for Quality Gate result..."
 
-                    def maxAttempts = 3
-                    def attempt = 0
                     def qgPassed = false
-                    def lastError = null
+                    def attempt = 0
+                    def maxAttempts = 3
 
                     while (attempt < maxAttempts && !qgPassed) {
                         try {
-                            echo "Attempt ${attempt + 1}/${maxAttempts} to check Quality Gate..."
-
                             timeout(time: 2, unit: 'MINUTES') {
                                 def qg = waitForQualityGate()
                                 echo "Quality Gate status: ${qg.status}"
-
                                 if (qg.status == 'OK') {
                                     echo "✅ Quality Gate passed!"
                                     qgPassed = true
-                                    break
                                 } else if (qg.status == 'ERROR' || qg.status == 'WARN') {
-                                    echo "⚠️ Quality Gate failed with status: ${qg.status}"
-                                    unstable("Quality Gate status: ${qg.status}")
-                                    qgPassed = true  // Mark as handled
-                                    break
+                                    echo "⚠️ Quality Gate failed: ${qg.status}"
+                                    unstable("Quality Gate failure")
+                                    qgPassed = true  // mark complete to exit loop
                                 }
                             }
-
-                        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-                            lastError = e
-                            echo "⏱️ Timeout on attempt ${attempt + 1}: ${e.message}"
-                            attempt++
-
-                            if (attempt < maxAttempts) {
-                                echo "Waiting 15 seconds before retry..."
-                                sleep(time: 15, unit: 'SECONDS')
-                            }
-
                         } catch (Exception e) {
-                            lastError = e
-                            echo "⚠️ Error on attempt ${attempt + 1}: ${e.message}"
-                            attempt++
-
-                            if (attempt < maxAttempts) {
-                                echo "Waiting 15 seconds before retry..."
-                                sleep(time: 15, unit: 'SECONDS')
+                            echo "Attempt ${attempt + 1} failed: ${e.message}"
+                            if (attempt == maxAttempts - 1) {
+                                error "Quality Gate check failed after max attempts"
                             }
+                            sleep(time: 15, unit: 'SECONDS')
                         }
+                        attempt++
                     }
-
-                    if (!qgPassed) {
-                        echo "❌ Quality Gate check failed after ${maxAttempts} attempts"
-                        echo "Last error: ${lastError?.message}"
-                        echo "⚠️ Continuing pipeline despite Quality Gate timeout..."
-                        unstable("Quality Gate could not be confirmed")
-                    }
-                }
+               }
             }
         }
 
