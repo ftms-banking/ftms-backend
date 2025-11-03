@@ -44,7 +44,7 @@ jobs:
         run: |
           echo Initiating SonarQube scan...
           mvn sonar:sonar ^
-            -Dsonar.projectKey=ftms-enterprise ^
+            -Dsonar.projectKey=ftms-backend ^
             -Dsonar.host.url=%SONAR_HOST_URL% ^
             -Dsonar.login=%SONAR_TOKEN%
       
