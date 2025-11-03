@@ -28,7 +28,7 @@
         <sonar.projectKey>ftms-backend</sonar.projectKey>
         <sonar.projectName>FTMS Backend</sonar.projectName>
         <sonar.organization>ftms</sonar.organization>
-        <sonar.host.url>http://localhost:9000</sonar.host.url>
+        <sonar.host.url>http://sonarqube:9000</sonar.host.url>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
         <sonar.coverage.jacoco.xmlReportPaths>
             ${project.build.directory}/site/jacoco/jacoco.xml
