@@ -95,7 +95,6 @@ pipeline {
                         mvn sonar:sonar \
                           -Dsonar.projectKey=ftms-backend \
                           -Dsonar.projectName="FTMS Backend" \
-                          -Dsonar.host.url=${SONAR_HOST_URL} \
                           -Dsonar.java.binaries=target/classes
                     '''
                 }
