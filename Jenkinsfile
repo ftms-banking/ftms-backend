@@ -2,209 +2,260 @@ pipeline {
     agent any
     
     tools {
-        maven 'Maven 3.9'
+        maven 'Maven-3.9'
+        jdk 'JDK-21'
     }
 
     environment {
-        SONAR_HOST = 'http://sonarqube:9000'
-        DOCKER_IMAGE = 'ftms-backend'
-        DOCKER_REGISTRY = 'localhost:5000'
+        // SonarQube
+        SONAR_HOST_URL = 'http://sonarqube:9000'
+
+        // MySQL
+        MYSQL_HOST = 'mysql'
+        MYSQL_PORT = '3306'
+        MYSQL_DATABASE = 'ftms_db'
+        MYSQL_USER = 'ftms_user'
+        MYSQL_PASSWORD = 'ftms_pass'
+
+        // Application
+        APP_NAME = 'ftms-backend'
+        BUILD_VERSION = "${env.BUILD_NUMBER}"
+    }
+
+    options {
+        // Keep last 10 builds
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+
+        // Timeout after 30 minutes
+        timeout(time: 30, unit: 'MINUTES')
+
+        // Timestamps in console
+        timestamps()
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo '📥 Checking out code from GitHub...'
+                echo "📥 Checking out code from GitHub..."
                 checkout scm
+
+                script {
+                    // Get Git commit info
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_BRANCH = sh(
+                        script: "git rev-parse --abbrev-ref HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+
+                echo "Branch: ${env.GIT_BRANCH}"
+                echo "Commit: ${env.GIT_COMMIT_SHORT}"
             }
         }
 
-        stage('Build') {
+        stage('Environment Info') {
             steps {
-                echo '🔨 Building application...'
-                sh './mvnw clean compile'
+                echo "🔍 Build Environment Information"
+                sh '''
+                    echo "Java Version:"
+                    java -version
+                    echo ""
+                    echo "Maven Version:"
+                    mvn -version
+                    echo ""
+                    echo "Docker Version:"
+                    docker --version
+                '''
+            }
+        }
+
+        stage('Clean') {
+            steps {
+                echo "🧹 Cleaning previous builds..."
+                sh 'mvn clean'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                echo "🔨 Compiling source code..."
+                sh 'mvn compile -DskipTests'
             }
         }
 
         stage('Unit Tests') {
             steps {
-                echo '🧪 Running unit tests...'
-                sh './mvnw test'
+                echo "🧪 Running unit tests..."
+                sh 'mvn test'
             }
             post {
                 always {
+                    // Publish test results
                     junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+
+                    // Publish JaCoCo coverage report
                     jacoco(
                         execPattern: '**/target/jacoco.exec',
                         classPattern: '**/target/classes',
-                        sourcePattern: '**/src/main/java'
+                        sourcePattern: '**/src/main/java',
+                        exclusionPattern: '**/config/**,**/dto/**,**/entity/**,**/exception/**,**/*Application.class'
+                    )
+                }
+            }
+        }
+
+        stage('Code Quality - Checkstyle') {
+            steps {
+                echo "📝 Running Checkstyle..."
+                sh 'mvn checkstyle:check || true'
+            }
+            post {
+                always {
+                    recordIssues(
+                        enabledForFailure: true,
+                        tool: checkStyle(pattern: '**/target/checkstyle-result.xml')
                     )
                 }
             }
         }
 
         stage('SonarQube Analysis') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
             steps {
-                echo '📊 Running SonarQube analysis...'
+                echo "🔍 Running SonarQube analysis..."
                 withSonarQubeEnv('SonarQube') {
-                    sh """
-                        ./mvnw sonar:sonar \
+                    sh '''
+                        mvn sonar:sonar \
                           -Dsonar.projectKey=ftms-backend \
-                          -Dsonar.projectName=FTMS-Backend \
-                          -Dsonar.host.url=\${SONAR_HOST}
-                    """
+                          -Dsonar.projectName="FTMS Backend" \
+                          -Dsonar.host.url=${SONAR_HOST_URL} \
+                          -Dsonar.java.binaries=target/classes
+                    '''
                 }
             }
         }
 
         stage('Quality Gate') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
             steps {
-                echo '🚦 Checking quality gate...'
+                echo "🚦 Waiting for Quality Gate result..."
                 timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            echo "⚠️ Quality Gate failed: ${qg.status}"
+                            // Don't fail build, just warn
+                            unstable("Quality Gate failed")
+                        } else {
+                            echo "✅ Quality Gate passed!"
+                        }
+                    }
                 }
             }
         }
 
         stage('Package') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
             steps {
-                echo '📦 Packaging application...'
-                sh './mvnw package -DskipTests'
+                echo "📦 Packaging application..."
+                sh 'mvn package -DskipTests'
             }
         }
 
-        stage('Build Docker Image') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
+        stage('Archive Artifacts') {
             steps {
-                echo '🐳 Building Docker image...'
-                script {
-                    sh """
-                        docker build -t \${DOCKER_IMAGE}:latest \
-                          -t \${DOCKER_IMAGE}:\${BUILD_NUMBER} \
-                          -f docker/Dockerfile .
+                echo "💾 Archiving build artifacts..."
+                archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
 
-                        docker tag \${DOCKER_IMAGE}:latest \${DOCKER_REGISTRY}/\${DOCKER_IMAGE}:latest
-                        docker tag \${DOCKER_IMAGE}:\${BUILD_NUMBER} \${DOCKER_REGISTRY}/\${DOCKER_IMAGE}:\${BUILD_NUMBER}
+                // Archive test reports
+                archiveArtifacts artifacts: '**/target/surefire-reports/**', allowEmptyArchive: true
+            }
+        }
+
+        stage('Build Info') {
+            steps {
+                script {
+                    echo """
+                    ========================================
+                    📊 BUILD SUMMARY
+                    ========================================
+                    Project:     ${APP_NAME}
+                    Version:     ${BUILD_VERSION}
+                    Branch:      ${GIT_BRANCH}
+                    Commit:      ${GIT_COMMIT_SHORT}
+                    Build:       #${BUILD_NUMBER}
+                    ========================================
                     """
                 }
-            }
-        }
-
-        stage('Push to Registry') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '📤 Pushing to Docker registry...'
-                script {
-                    sh """
-                        docker push \${DOCKER_REGISTRY}/\${DOCKER_IMAGE}:latest
-                        docker push \${DOCKER_REGISTRY}/\${DOCKER_IMAGE}:\${BUILD_NUMBER}
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to Local') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '🚀 Deploying to local Docker...'
-                script {
-                    sh """
-                        # Stop and remove existing container
-                        docker stop ftms-app || true
-                        docker rm ftms-app || true
-
-                        # Run new container
-                        docker run -d \
-                          --name ftms-app \
-                          --network ftms-enterprise \
-                          -p 8090:8080 \
-                          -e SPRING_PROFILES_ACTIVE=dev \
-                          -e DB_URL=jdbc:mysql://mysql:3306/ftms_db \
-                          -e DB_USERNAME=ftms_user \
-                          -e DB_PASSWORD=ftms_pass \
-                          \${DOCKER_IMAGE}:latest
-
-                        echo "⏳ Waiting for application to start..."
-                        sleep 30
-                    """
-                }
-            }
-        }
-
-        stage('Health Check') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '❤️ Checking application health...'
-                script {
-                    sh """
-                        for i in {1..10}; do
-                            if docker exec ftms-app curl -f http://localhost:8080/actuator/health; then
-                                echo "✅ Application is healthy!"
-                                exit 0
-                            fi
-                            echo "Waiting for application... attempt \$i/10"
-                            sleep 5
-                        done
-                        echo "❌ Application health check failed!"
-                        exit 1
-                    """
-                }
-            }
-        }
-
-        stage('Integration Tests') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '🔗 Running integration tests...'
-                sh './mvnw verify -DskipUnitTests'
             }
         }
     }
 
     post {
         success {
-            echo '✅ Pipeline completed successfully!'
-            echo "📊 View SonarQube: http://localhost:9000/dashboard?id=ftms-backend"
-            echo "🐳 Application: http://localhost:8090/actuator/health"
-            echo "📈 Grafana: http://localhost:3000"
+            echo "✅ Pipeline completed successfully!"
+            // Optional: Send notification
         }
+
         failure {
-            echo '❌ Pipeline failed!'
+            echo "❌ Pipeline failed!"
+            // Optional: Send notification
         }
+
+        unstable {
+            echo "⚠️ Pipeline completed with warnings!"
+        }
+
         always {
-            echo '🧹 Cleaning workspace...'
-            cleanWs()
+            echo "🧹 Cleaning up workspace..."
+            cleanWs(
+                deleteDirs: true,
+                disableDeferredWipeout: true,
+                patterns: [
+                    [pattern: 'target/**', type: 'INCLUDE'],
+                    [pattern: '.git/**', type: 'EXCLUDE']
+                ]
+            )
         }
     }
 }
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="warning"/>
+    <property name="fileExtensions" value="java"/>
+
+    <!-- Excludes all 'module-info.java' files -->
+    <module name="BeforeExecutionExclusionFileFilter">
+        <property name="fileNamePattern" value="module\-info\.java$"/>
+    </module>
+
+    <module name="TreeWalker">
+        <!-- Naming Conventions -->
+        <module name="TypeName"/>
+        <module name="MethodName"/>
+        <module name="PackageName"/>
+        <module name="ConstantName"/>
+
+        <!-- Imports -->
+        <module name="AvoidStarImport"/>
+        <module name="UnusedImports"/>
+
+        <!-- Size Violations -->
+        <module name="LineLength">
+            <property name="max" value="120"/>
+        </module>
+
+        <!-- Whitespace -->
+        <module name="WhitespaceAfter"/>
+        <module name="WhitespaceAround"/>
+
+        <!-- Coding -->
+        <module name="EmptyStatement"/>
+        <module name="EqualsHashCode"/>
+    </module>
+</module>

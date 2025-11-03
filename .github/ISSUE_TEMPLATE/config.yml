@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: 🧠 Architecture / Design Clarifications
-    url: https://github.com/<your-org>/<your-repo>/discussions
-    about: Use discussions for architectural queries or design brainstorming.
-  - name: 💬 Internal Slack Channel
-    url: https://yourcompany.slack.com/archives/<channel-id>
-    about: Engage the engineering channel for quick technical clarifications.
