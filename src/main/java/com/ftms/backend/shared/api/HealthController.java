@@ -13,7 +13,7 @@ import java.util.Map;
  * For custom behavior use composition or delegate to a service bean.
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
 public final class HealthController {
 
     /**
