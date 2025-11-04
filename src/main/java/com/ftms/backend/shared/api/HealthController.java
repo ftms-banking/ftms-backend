@@ -1,4 +1,4 @@
-package com.ftms.backend.shared.api;
+package com.ftms.backend.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -7,27 +7,23 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * Controller exposing health-related endpoints for the FTMS backend.
- *
- * <p>This controller is final because it is not designed to be subclassed.
- * For custom behavior use composition or delegate to a service bean.
+ * Provides a health check endpoint for the FTMS Backend service.
  */
 @RestController
 @RequestMapping("/api")
-public final class HealthController {
+public class HealthController {
 
     /**
-     * Simple health endpoint used by load balancers and orchestration
-     * systems to verify that the application is running.
+     * Returns basic health information of the service.
      *
-     * @return 200 OK when the application is healthy
+     * @return a map containing status, service name, and version
      */
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of(
                 "status", "UP",
                 "service", "FTMS Backend",
-                "version", "0.0.1-SNAPSHOT"
+                "version", "v1"
         );
     }
 }
