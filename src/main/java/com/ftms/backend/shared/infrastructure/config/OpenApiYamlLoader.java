@@ -1,4 +1,4 @@
-package com.ftms.backend.config;
+package com.ftms.backend.shared.infrastructure.config;
 
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
